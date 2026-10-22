@@ -33,6 +33,10 @@ DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', '')
 
 import socket
 
+def clean_password(pwd: str) -> str:
+    """Gmail app passwords often come with spaces; strip them for smtplib."""
+    return pwd.replace(" ", "").strip() if pwd else ""
+
 def create_ipv4_socket(host: str, port: int, timeout: float = 12):
     """Specifically resolve and connect via IPv4 to prevent serverless/Linux [Errno 101] Network is unreachable."""
     addr_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)

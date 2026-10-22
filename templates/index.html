@@ -25,21 +25,58 @@
           <p class="brand-subtitle">Bulk email sender via Gmail SMTP</p>
         </div>
       </div>
+      
+      <!-- Server Health & Actions -->
       <div class="header-actions">
-        <div id="smtpStatusPill" class="status-pill status-idle">
+        <!-- Server Status Indicator -->
+        <div id="serverStatusPill" class="status-pill status-idle" title="Render backend service health status">
           <span class="status-dot"></span>
-          <span id="smtpStatusText">Not verified</span>
+          <span id="serverStatusText">Checking server...</span>
         </div>
-        <button id="verifyHeaderBtn" type="button" class="btn btn-secondary btn-sm">
+
+        <!-- Dedicated Wake Up Button -->
+        <button id="wakeServerBtn" type="button" class="btn btn-secondary btn-sm" title="Click to wake up sleeping Render instance (takes 20-40s on cold start)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+            <line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
+          <span id="wakeServerBtnText">Wake Up Server</span>
+        </button>
+
+        <!-- Test Connection Button -->
+        <button id="verifyHeaderBtn" type="button" class="btn btn-secondary btn-sm" title="Test SMTP connection with entered credentials">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
-          Test Connection
+          Test SMTP
+        </button>
+
+        <!-- Settings (for Vercel + Render custom URL) -->
+        <button id="settingsBtn" type="button" class="btn btn-icon btn-sm" title="Server Connection Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
         </button>
       </div>
     </div>
   </header>
+
+  <!-- Waking Up Banner (shown when Render cold boots) -->
+  <div id="wakeUpBanner" class="alert-banner" style="display: none;">
+    <div class="alert-banner-container">
+      <div class="spinner-inline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      </div>
+      <div>
+        <strong>Waking up Render service...</strong>
+        Render free tier spins down after 15 minutes of inactivity. Cold start takes 25–45 seconds. This page will automatically detect when it's online.
+      </div>
+    </div>
+  </div>
 
   <!-- Main Content Layout -->
   <main class="main-container">
@@ -55,8 +92,12 @@
               <span class="step-badge">1</span>
               <div>
                 <h2 class="card-title">Sender Credentials</h2>
-                <p class="card-description">Configure your sending Gmail account and App Password</p>
+                <p class="card-description">Enter your Gmail account and 16-character App Password</p>
               </div>
+            </div>
+            <div id="smtpStatusPill" class="status-pill status-idle">
+              <span class="status-dot"></span>
+              <span id="smtpStatusText">Unverified</span>
             </div>
           </div>
           <div class="card-body">
@@ -77,6 +118,7 @@
                   placeholder="your.email@gmail.com" 
                   value="{{ default_email or '' }}"
                   required
+                  autocomplete="email"
                 >
               </div>
             </div>
@@ -98,9 +140,10 @@
                   id="senderPassword" 
                   name="senderPassword" 
                   class="form-input with-prefix with-suffix" 
-                  placeholder="16-character app password" 
+                  placeholder="e.g. abcd efgh ijkl mnop" 
                   value="{{ default_password or '' }}"
                   required
+                  autocomplete="current-password"
                 >
                 <button type="button" id="togglePasswordBtn" class="input-suffix-btn" title="Toggle password visibility">
                   <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -116,6 +159,14 @@
                 </button>
               </div>
               <p class="form-hint">Generated via Google Account &gt; Security &gt; 2-Step Verification &gt; App Passwords.</p>
+            </div>
+
+            <!-- Remember on Device Option -->
+            <div class="checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="rememberCredentialsCheckbox" checked>
+                <span>Remember my credentials on this device (stored in local browser storage only)</span>
+              </label>
             </div>
           </div>
         </section>
@@ -363,6 +414,41 @@
     </section>
 
   </main>
+
+  <!-- Settings Modal (For configuring Backend Render URL when frontend is hosted on Vercel) -->
+  <div id="settingsModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Backend API Settings</h3>
+        <button type="button" id="settingsModalCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-warning">
+          If your frontend is hosted on Vercel and backend is on Render, specify your Render backend URL below:
+        </p>
+        <div class="form-group">
+          <label for="backendUrlInput" class="form-label">Backend Render URL</label>
+          <input 
+            type="url" 
+            id="backendUrlInput" 
+            class="form-input" 
+            placeholder="e.g. https://your-app.onrender.com (leave blank for same-domain)"
+          >
+          <p class="form-hint">Leave blank if both frontend and backend are hosted on the same domain.</p>
+        </div>
+
+        <div class="checkbox-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="autoKeepAliveCheckbox" checked>
+            <span>Auto keep-alive: Ping backend every 10 minutes while tab is open to prevent Render free-tier sleep.</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="settingsModalSaveBtn" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Notification Toast Container -->
   <div id="toastContainer" class="toast-container"></div>

@@ -10,6 +10,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask_cors import CORS
 
 try:
     from dotenv import load_dotenv
@@ -18,13 +19,17 @@ except ImportError:
     pass
 
 app = Flask(__name__)
+# Enable CORS so if frontend is hosted on Vercel, it can communicate seamlessly with Render backend
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+
 # Maximum upload size: 25MB (standard Gmail limit is 25MB for total message size)
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
 
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
 
-DEFAULT_SENDER_EMAIL = os.environ.get('DEFAULT_SENDER_EMAIL', 'pratik1213.coep@gmail.com')
-DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', 'xker rbhl byno rvig')
+# Empty by default; only populated if administrator explicitly sets them via environment variables
+DEFAULT_SENDER_EMAIL = os.environ.get('DEFAULT_SENDER_EMAIL', '')
+DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', '')
 
 def clean_password(pwd: str) -> str:
     """Gmail app passwords often come with spaces; strip them for smtplib."""
@@ -45,6 +50,17 @@ def index():
         default_password=DEFAULT_SENDER_PASSWORD
     )
 
+# -------------------------------------------------------------
+# Health Check / Wake Up endpoint (Wakes up sleeping Render container)
+# -------------------------------------------------------------
+@app.route('/api/health')
+@app.route('/api/ping')
+def health_check():
+    return jsonify({
+        'status': 'awake',
+        'message': 'Render backend service is awake and ready.',
+        'timestamp': datetime.now().isoformat()
+    })
 
 @app.route('/api/verify', methods=['POST'])
 def verify_credentials():
@@ -65,7 +81,7 @@ def verify_credentials():
             'success': True,
             'message': f'Successfully authenticated with Gmail SMTP server for {email}.'
         })
-    except smtplib.SMTPAuthenticationError as e:
+    except smtplib.SMTPAuthenticationError:
         return jsonify({
             'success': False,
             'error': 'Authentication failed. Please check that your email address and 16-character App Password are correct.'
@@ -248,4 +264,4 @@ def send_bulk_emails():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     print(f"[*] Bulk Mail Sender server running at http://127.0.0.1:{port}")
-    app.run(host='127.0.0.1', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)

@@ -4,6 +4,12 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- DOM Elements ---
+  const serverStatusPill = document.getElementById('serverStatusPill');
+  const serverStatusText = document.getElementById('serverStatusText');
+  const wakeServerBtn = document.getElementById('wakeServerBtn');
+  const wakeServerBtnText = document.getElementById('wakeServerBtnText');
+  const wakeUpBanner = document.getElementById('wakeUpBanner');
+
   const senderEmailInput = document.getElementById('senderEmail');
   const senderPasswordInput = document.getElementById('senderPassword');
   const togglePasswordBtn = document.getElementById('togglePasswordBtn');
@@ -12,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyHeaderBtn = document.getElementById('verifyHeaderBtn');
   const smtpStatusPill = document.getElementById('smtpStatusPill');
   const smtpStatusText = document.getElementById('smtpStatusText');
+  const rememberCredentialsCheckbox = document.getElementById('rememberCredentialsCheckbox');
 
   const recipientsTextarea = document.getElementById('recipientsTextarea');
   const csvFileInput = document.getElementById('csvFileInput');
@@ -54,6 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmAttachments = document.getElementById('confirmAttachments');
   const confirmDelay = document.getElementById('confirmDelay');
 
+  // Settings Modal Elements
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsModalCloseBtn = document.getElementById('settingsModalCloseBtn');
+  const settingsModalSaveBtn = document.getElementById('settingsModalSaveBtn');
+  const backendUrlInput = document.getElementById('backendUrlInput');
+  const autoKeepAliveCheckbox = document.getElementById('autoKeepAliveCheckbox');
+
   // Console Elements
   const dispatchConsole = document.getElementById('dispatchConsole');
   const consoleSpinner = document.getElementById('consoleSpinner');
@@ -75,11 +90,119 @@ document.addEventListener('DOMContentLoaded', () => {
   let isHtmlMode = false;
   let parsedRecipients = [];
   let logHistory = [];
+  let isServerAwake = false;
 
   const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
 
   // -----------------------------------------------------------
-  // 1. Password Toggle
+  // 0. API Base URL resolution (for Vercel + Render split)
+  // -----------------------------------------------------------
+  function getApiBase() {
+    const saved = localStorage.getItem('mail_sender_backend_url');
+    if (saved && saved.trim()) {
+      return saved.trim().replace(/\/+$/, '');
+    }
+    return '';
+  }
+
+  // -----------------------------------------------------------
+  // 1. Render Server Health Check & Wake-up System
+  // -----------------------------------------------------------
+  async function pingServer(isUserInitiated = false) {
+    setServerStatus('waking', 'Pinging server...');
+    wakeServerBtn.disabled = true;
+    wakeServerBtnText.textContent = 'Waking Up...';
+    
+    // If it's sleeping, render takes ~30 seconds; show banner
+    const bannerTimer = setTimeout(() => {
+      wakeUpBanner.style.display = 'block';
+    }, 2000);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s timeout for Render cold start
+
+    try {
+      const url = `${getApiBase()}/api/health`;
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(bannerTimer);
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        isServerAwake = true;
+        setServerStatus('awake', 'Server Awake');
+        wakeUpBanner.style.display = 'none';
+        wakeServerBtnText.textContent = 'Server Online';
+        wakeServerBtn.classList.add('btn-online');
+        if (isUserInitiated) {
+          showToast('Render backend is awake and responding!', 'success');
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (err) {
+      clearTimeout(bannerTimer);
+      clearTimeout(timeoutId);
+      isServerAwake = false;
+      setServerStatus('sleeping', 'Server Sleeping');
+      wakeServerBtnText.textContent = 'Wake Up Server';
+      wakeServerBtn.classList.remove('btn-online');
+      if (isUserInitiated) {
+        showToast('Server did not respond. Render might be starting up, please try again in a few moments.', 'error');
+      }
+    } finally {
+      wakeServerBtn.disabled = false;
+    }
+  }
+
+  function setServerStatus(status, text) {
+    serverStatusPill.className = 'status-pill';
+    if (status === 'awake') {
+      serverStatusPill.classList.add('status-verified');
+    } else if (status === 'waking') {
+      serverStatusPill.classList.add('status-waking');
+    } else if (status === 'sleeping') {
+      serverStatusPill.classList.add('status-sleeping');
+    } else {
+      serverStatusPill.classList.add('status-idle');
+    }
+    serverStatusText.textContent = text;
+  }
+
+  wakeServerBtn.addEventListener('click', () => pingServer(true));
+
+  // Auto-ping on load
+  pingServer(false);
+
+  // Auto Keep-Alive Interval: Ping every 10 minutes while tab is open
+  setInterval(() => {
+    const shouldKeepAlive = autoKeepAliveCheckbox ? autoKeepAliveCheckbox.checked : true;
+    if (shouldKeepAlive && document.visibilityState === 'visible') {
+      pingServer(false);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
+
+  // -----------------------------------------------------------
+  // 2. Settings Modal (for Vercel deployment)
+  // -----------------------------------------------------------
+  settingsBtn.addEventListener('click', () => {
+    backendUrlInput.value = localStorage.getItem('mail_sender_backend_url') || '';
+    autoKeepAliveCheckbox.checked = localStorage.getItem('mail_sender_keepalive') !== 'false';
+    settingsModal.style.display = 'flex';
+  });
+
+  settingsModalCloseBtn.addEventListener('click', () => settingsModal.style.display = 'none');
+
+  settingsModalSaveBtn.addEventListener('click', () => {
+    const url = backendUrlInput.value.trim().replace(/\/+$/, '');
+    localStorage.setItem('mail_sender_backend_url', url);
+    localStorage.setItem('mail_sender_keepalive', autoKeepAliveCheckbox.checked ? 'true' : 'false');
+    settingsModal.style.display = 'none';
+    showToast('Settings saved. Reconnecting...', 'info');
+    pingServer(true);
+  });
+
+  // -----------------------------------------------------------
+  // 3. Password Toggle & Local Credentials Storage
   // -----------------------------------------------------------
   togglePasswordBtn.addEventListener('click', () => {
     const isPass = senderPasswordInput.type === 'password';
@@ -88,23 +211,48 @@ document.addEventListener('DOMContentLoaded', () => {
     eyeOffIcon.classList.toggle('hidden', !isPass);
   });
 
+  // Restore saved credentials if previously remembered by the user on this device
+  const savedEmail = localStorage.getItem('mail_sender_email');
+  const savedPass = localStorage.getItem('mail_sender_password');
+  if (savedEmail && !senderEmailInput.value) {
+    senderEmailInput.value = savedEmail;
+  }
+  if (savedPass && !senderPasswordInput.value) {
+    senderPasswordInput.value = savedPass;
+  }
+
+  function handleSaveCredentials() {
+    if (rememberCredentialsCheckbox.checked) {
+      if (senderEmailInput.value) localStorage.setItem('mail_sender_email', senderEmailInput.value.trim());
+      if (senderPasswordInput.value) localStorage.setItem('mail_sender_password', senderPasswordInput.value);
+    } else {
+      localStorage.removeItem('mail_sender_email');
+      localStorage.removeItem('mail_sender_password');
+    }
+  }
+
+  senderEmailInput.addEventListener('change', handleSaveCredentials);
+  senderPasswordInput.addEventListener('change', handleSaveCredentials);
+  rememberCredentialsCheckbox.addEventListener('change', handleSaveCredentials);
+
   // -----------------------------------------------------------
-  // 2. SMTP Verification
+  // 4. SMTP Verification
   // -----------------------------------------------------------
   async function verifyConnection() {
     const email = senderEmailInput.value.trim();
     const password = senderPasswordInput.value;
 
     if (!email || !password) {
-      showToast('Please enter both sender email and app password.', 'error');
+      showToast('Please enter both your Gmail address and 16-character App Password.', 'error');
+      senderEmailInput.focus();
       return;
     }
 
-    setSmtpStatus('checking', 'Connecting...');
+    setSmtpStatus('checking', 'Verifying...');
     verifyHeaderBtn.disabled = true;
 
     try {
-      const response = await fetch('/api/verify', {
+      const response = await fetch(`${getApiBase()}/api/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sender_email: email, sender_password: password })
@@ -112,15 +260,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setSmtpStatus('verified', 'Connected');
+        setSmtpStatus('verified', 'Verified');
         showToast(data.message, 'success');
+        handleSaveCredentials();
       } else {
         setSmtpStatus('error', 'Auth Failed');
         showToast(data.error || 'Failed to authenticate with Gmail.', 'error');
       }
     } catch (err) {
-      setSmtpStatus('error', 'Connection Error');
-      showToast('Network error while testing connection.', 'error');
+      setSmtpStatus('error', 'Error');
+      showToast('Could not reach backend server. Make sure it is awake.', 'error');
     } finally {
       verifyHeaderBtn.disabled = false;
     }
@@ -140,13 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   verifyHeaderBtn.addEventListener('click', verifyConnection);
 
-  // Auto-verify on first load if credentials present
-  if (senderEmailInput.value && senderPasswordInput.value) {
-    verifyConnection();
-  }
-
   // -----------------------------------------------------------
-  // 3. Recipients Parsing & Validation
+  // 5. Recipients Parsing & Validation
   // -----------------------------------------------------------
   function parseRecipients() {
     const raw = recipientsTextarea.value;
@@ -226,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -----------------------------------------------------------
-  // 4. Document Attachments
+  // 6. Document Attachments
   // -----------------------------------------------------------
   browseFilesBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -271,7 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Cannot attach "${f.name}": Exceeds the 25 MB total limit.`, 'error');
         return;
       }
-      // avoid exact name duplicate
       if (!attachedFiles.some(af => af.name === f.name && af.size === f.size)) {
         attachedFiles.push(f);
         currentTotalSize += f.size;
@@ -311,9 +454,8 @@ document.addEventListener('DOMContentLoaded', () => {
       attachedFilesList.appendChild(item);
     });
 
-    // Add remove listeners
     attachedFilesList.querySelectorAll('.btn-remove-file').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         const i = parseInt(btn.getAttribute('data-index'), 10);
         attachedFiles.splice(i, 1);
         renderAttachedFiles();
@@ -330,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -----------------------------------------------------------
-  // 5. Plain / HTML Mode & Write/Preview Tabs
+  // 7. Plain / HTML Mode & Write/Preview Tabs
   // -----------------------------------------------------------
   btnModePlain.addEventListener('click', () => {
     isHtmlMode = false;
@@ -368,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isHtmlMode) {
       previewHtmlContent.innerHTML = raw || '<em style="color:#94a3b8">No content entered yet.</em>';
     } else {
-      // Escape and preserve linebreaks
       const safe = escapeHtml(raw).replace(/\n/g, '<br>');
       previewHtmlContent.innerHTML = safe || '<em style="color:#94a3b8">No content entered yet.</em>';
     }
@@ -381,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -----------------------------------------------------------
-  // 6. Test Email to Myself
+  // 8. Test Email to Myself
   // -----------------------------------------------------------
   sendTestBtn.addEventListener('click', async () => {
     const senderEmail = senderEmailInput.value.trim();
@@ -390,12 +531,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const content = emailBodyTextarea.value.trim();
 
     if (!senderEmail || !senderPassword) {
-      showToast('Please enter your sender email and password first.', 'error');
+      showToast('Please enter your sender email and 16-char app password first.', 'error');
+      senderEmailInput.focus();
       return;
     }
 
     if (!content) {
       showToast('Please enter email body content before sending a test.', 'error');
+      emailBodyTextarea.focus();
       return;
     }
 
@@ -416,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachedFiles.forEach(file => formData.append('files', file));
 
     try {
-      const response = await fetch('/api/send-test', {
+      const response = await fetch(`${getApiBase()}/api/send-test`, {
         method: 'POST',
         body: formData
       });
@@ -424,6 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (response.ok && data.success) {
         showToast(data.message, 'success');
+        handleSaveCredentials();
       } else {
         showToast(data.error || 'Failed to send test email.', 'error');
       }
@@ -442,10 +586,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -----------------------------------------------------------
-  // 7. Bulk Send Confirmation & Execution
+  // 9. Bulk Send Confirmation & Execution
   // -----------------------------------------------------------
   mailForm.addEventListener('submit', (e) => {
     e.preventDefault();
+
+    const senderEmail = senderEmailInput.value.trim();
+    const senderPassword = senderPasswordInput.value;
+
+    if (!senderEmail || !senderPassword) {
+      showToast('Please enter your sender Gmail address and App Password.', 'error');
+      senderEmailInput.focus();
+      return;
+    }
 
     if (parsedRecipients.length === 0) {
       showToast('Please specify at least one valid recipient email address.', 'error');
@@ -467,9 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Populate modal confirmation
     confirmRecipientCount.textContent = parsedRecipients.length;
-    confirmFrom.textContent = senderEmailInput.value.trim();
+    confirmFrom.textContent = senderEmail;
     confirmSubject.textContent = subject;
     confirmAttachments.textContent = attachedFiles.length > 0
       ? `${attachedFiles.length} file(s) attached`
@@ -488,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function startBulkDispatch() {
-    // Reset and display console
     dispatchConsole.style.display = 'block';
     dispatchConsole.scrollIntoView({ behavior: 'smooth' });
     consoleSpinner.style.display = 'flex';
@@ -521,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachedFiles.forEach(file => formData.append('files', file));
 
     try {
-      const response = await fetch('/api/send-bulk', {
+      const response = await fetch(`${getApiBase()}/api/send-bulk`, {
         method: 'POST',
         body: formData
       });
@@ -531,7 +682,6 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(errJson.error || 'Server rejected dispatch request.');
       }
 
-      // Read SSE stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -542,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
-        buffer = lines.pop(); // keep remainder
+        buffer = lines.pop();
 
         for (const block of lines) {
           const match = block.match(/^data:\s*(.+)$/m);
@@ -585,7 +735,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       logHistory.push(event);
 
-      // Append row to table
       const row = document.createElement('tr');
       const isOk = event.status === 'sent';
       const badgeClass = isOk ? 'badge-sent' : 'badge-failed';
@@ -638,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -----------------------------------------------------------
-  // 8. Utility Toast System & Escaper
+  // 10. Utility Toast System & Escaper
   // -----------------------------------------------------------
   function showToast(message, type = 'info') {
     const toast = document.createElement('div');

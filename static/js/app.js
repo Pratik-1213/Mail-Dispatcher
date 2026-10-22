@@ -61,13 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmAttachments = document.getElementById('confirmAttachments');
   const confirmDelay = document.getElementById('confirmDelay');
 
-  // Settings Modal Elements
-  const settingsBtn = document.getElementById('settingsBtn');
-  const settingsModal = document.getElementById('settingsModal');
-  const settingsModalCloseBtn = document.getElementById('settingsModalCloseBtn');
-  const settingsModalSaveBtn = document.getElementById('settingsModalSaveBtn');
-  const backendUrlInput = document.getElementById('backendUrlInput');
-  const autoKeepAliveCheckbox = document.getElementById('autoKeepAliveCheckbox');
 
   // Console Elements
   const dispatchConsole = document.getElementById('dispatchConsole');
@@ -95,19 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
 
   // -----------------------------------------------------------
-  // 0. API Base URL resolution (for Vercel + Render split)
+  // 0. API Base URL resolution (Same origin on Render)
   // -----------------------------------------------------------
   function getApiBase() {
-    // 1. Manual user override from Settings modal
-    const saved = localStorage.getItem('mail_sender_backend_url');
-    if (saved && saved.trim()) {
-      return saved.trim().replace(/\/+$/, '');
-    }
-    // 2. Injected from Vercel environment variable (RENDER_BACKEND_URL / BACKEND_URL)
-    if (window.RENDER_BACKEND_URL && window.RENDER_BACKEND_URL.trim()) {
-      return window.RENDER_BACKEND_URL.trim().replace(/\/+$/, '');
-    }
-    // 3. Fallback to same origin
     return '';
   }
 
@@ -179,33 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Auto-ping on load
   pingServer(false);
 
-  // Auto Keep-Alive Interval: Ping every 10 minutes while tab is open
+  // Auto Keep-Alive: Ping Render every 10 minutes while tab is open to prevent idle sleep
   setInterval(() => {
-    const shouldKeepAlive = autoKeepAliveCheckbox ? autoKeepAliveCheckbox.checked : true;
-    if (shouldKeepAlive && document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible') {
       pingServer(false);
     }
   }, 10 * 60 * 1000); // 10 minutes
-
-  // -----------------------------------------------------------
-  // 2. Settings Modal (for Vercel deployment)
-  // -----------------------------------------------------------
-  settingsBtn.addEventListener('click', () => {
-    backendUrlInput.value = localStorage.getItem('mail_sender_backend_url') || window.RENDER_BACKEND_URL || '';
-    autoKeepAliveCheckbox.checked = localStorage.getItem('mail_sender_keepalive') !== 'false';
-    settingsModal.style.display = 'flex';
-  });
-
-  settingsModalCloseBtn.addEventListener('click', () => settingsModal.style.display = 'none');
-
-  settingsModalSaveBtn.addEventListener('click', () => {
-    const url = backendUrlInput.value.trim().replace(/\/+$/, '');
-    localStorage.setItem('mail_sender_backend_url', url);
-    localStorage.setItem('mail_sender_keepalive', autoKeepAliveCheckbox.checked ? 'true' : 'false');
-    settingsModal.style.display = 'none';
-    showToast('Settings saved. Reconnecting...', 'info');
-    pingServer(true);
-  });
 
   // -----------------------------------------------------------
   // 3. Password Toggle & Local Credentials Storage

@@ -1,76 +1,59 @@
-# Deployment Guide: Render & Vercel
+# Deployment Guide: Full-Stack on Render (Free Web Service)
 
-This guide explains how to deploy the **Bulk Mail Sender** application using **Render** (free cloud Python backend) and **Vercel** (optional fast global frontend).
-
----
-
-## Why Render for the Backend?
-
-Sending bulk emails with document attachments and real-time streaming progress requires persistent TCP connections (SMTP on SSL port 465) and long-lived streaming connections (SSE). 
-- **Render** runs a full Python environment with Gunicorn that supports persistent SMTP connections and streaming.
-- **Render Free Tier Sleep Behavior**: Free services on Render automatically spin down / go to sleep after 15 minutes of inactivity. When a request comes in, a cold start takes ~25–45 seconds.
-
-### How the New "Wake Up Server" Feature Solves This:
-1. **Status Pill**: Shows whether the server is **Online (Awake)**, **Waking Up**, or **Sleeping**.
-2. **Wake Up Server Button**: Located in the top header. You can click it before sending your campaign to pre-warm the Render container.
-3. **Automatic Keep-Alive**: When enabled, the open web page automatically pings the backend every 10 minutes so Render **never goes to sleep** while you are composing your emails!
+Deploying the **Bulk Mail Sender** directly on **Render** gives you a unified application (frontend + backend + Gmail SMTP engine) on a single free HTTPS domain.
 
 ---
 
-## Deployment Option 1: Full-Stack on Render (Simplest, Recommended)
+## Why Render Works (and Why Vercel Doesn't)
+- **Vercel** is a serverless environment (AWS Lambda) that blocks outbound raw TCP connections on custom ports like **465 (SMTPS)** and **587 (SMTP)**.
+- **Render** runs a full Linux container environment with an open network stack where Gmail's SMTP servers (`smtp.gmail.com:465`) work directly without network blocking.
 
-In this setup, Render hosts both the user interface and the Python email engine.
+---
 
-### Step 1: Push Code to GitHub
-1. Create a repository on GitHub (e.g. `bulk-mail-sender`), set it to **Private** or **Public**.
-2. Run in terminal:
-   ```bash
-   git add .
-   git commit -m "Update deployment files"
-   git remote add origin https://github.com/<YOUR_USERNAME>/bulk-mail-sender.git
-   git branch -M main
-   git push -u origin main
-   ```
+## Step 1: Push Code to GitHub
+Your repository is already connected and set up at:
+`https://github.com/Pratik-1213/Mail-Dispatcher.git`
 
-### Step 2: Create Web Service on Render
-1. Go to [Render Dashboard](https://dashboard.render.com/) and click **New +** > **Web Service**.
-2. Select your GitHub repository.
-3. Settings:
-   - **Name**: `bulk-mail-sender`
+If you ever make local changes, push them using:
+```bash
+git add .
+git commit -m "Update application"
+git push origin main
+```
+
+---
+
+## Step 2: Create Web Service on Render
+
+1. Log in to [Render Dashboard](https://dashboard.render.com/).
+2. Click the blue **New +** button in the top right corner and select **Web Service**.
+3. Under *Connect a repository*, choose **`Pratik-1213/Mail-Dispatcher`** and click **Connect**.
+4. Configure the service settings:
+   - **Name**: `mail-dispatcher` (or any name you prefer)
+   - **Region**: Choose any region close to you (e.g. *Singapore*, *Frankfurt*, or *Oregon*)
+   - **Branch**: `main`
+   - **Root Directory**: Leave blank (default `./`)
    - **Runtime**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `gunicorn app:app --workers 1 --threads 8 --timeout 300`
-   - **Plan**: **Free**
-4. Click **Create Web Service**.
-5. Once deployed, open your live URL: `https://bulk-mail-sender-xxxx.onrender.com`.
+   - **Instance Type**: **Free**
+5. Click **Create Web Service** at the bottom.
 
 ---
 
-## Deployment Option 2: Frontend on Vercel + Backend on Render
+## Step 3: Access Your Live Application
 
-If you deploy your project to **Vercel** and your backend to **Render**:
-
-### Step 1: Deploy Backend on Render
-1. Deploy your repository on Render as a Web Service.
-2. Copy your Render service URL (e.g., `https://mail-dispatcher-xyz.onrender.com`).
-
-### Step 2: Deploy to Vercel & Add Environment Variable
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard) and import your `Pratik-1213/Mail-Dispatcher` repository.
-2. In the **Environment Variables** section on Vercel, add:
-
-| Key | Value | Description |
-| :--- | :--- | :--- |
-| `RENDER_BACKEND_URL` | `https://your-backend.onrender.com` | Your live Render backend URL |
-
-3. Click **Deploy**.
-
-> **How it works**: Vercel reads `RENDER_BACKEND_URL` from your environment variables and automatically points all frontend requests (health check, SMTP verify, attachments, bulk dispatch) to your Render backend without needing any manual configuration in the browser!
-
+1. Render will automatically build the environment and start the Gunicorn server (typically takes 1–2 minutes).
+2. Once the build log says `Your service is live 🎉`, click your live URL at the top of the Render dashboard:
+   ```
+   https://mail-dispatcher-xxxx.onrender.com
+   ```
+3. Open the link, enter your Gmail address and 16-character App Password, and send a test email!
 
 ---
 
-## User Credentials Security
+## How Render Free Tier Sleep Works
 
-- The application **does not contain hardcoded credentials**.
-- Each user simply enters their own Gmail address and their 16-character Google App Password in the form.
-- The **Remember my credentials on this device** checkbox saves the credentials only in the user's private browser `localStorage` so they don't have to re-enter them on their own computer, without exposing them to other users.
+- Render's free tier spins down into sleep mode after 15 minutes of inactivity.
+- **Wake Up Server Button**: In the top header, click **Wake Up Server** to wake the container if it was idle.
+- **Auto Keep-Alive**: When the page is open in your browser, it automatically pings the server in the background every 10 minutes so Render **never goes to sleep** while you are composing your emails!

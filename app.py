@@ -30,7 +30,6 @@ EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
 # Empty by default; only populated if administrator explicitly sets them via environment variables
 DEFAULT_SENDER_EMAIL = os.environ.get('DEFAULT_SENDER_EMAIL', '')
 DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', '')
-RENDER_BACKEND_URL = os.environ.get('RENDER_BACKEND_URL', os.environ.get('BACKEND_URL', ''))
 
 import socket
 
@@ -103,10 +102,7 @@ def get_smtp_connection(sender_email: str, sender_password: str):
     except Exception as e:
         err_str = str(e) or str(last_err)
         if "101" in err_str or "unreachable" in err_str.lower() or "110" in err_str or "timed out" in err_str.lower():
-            raise OSError(
-                "Direct SMTP connection is blocked by this serverless host (Vercel). "
-                "Please deploy your backend to Render (where SMTP is fully supported), then in Vercel Settings or in the app's top header gear icon, paste your Render backend URL."
-            )
+            raise OSError("Could not establish connection to smtp.gmail.com. Please check network connectivity.")
         raise e
 
 @app.route('/')
@@ -114,15 +110,8 @@ def index():
     return render_template(
         'index.html',
         default_email=DEFAULT_SENDER_EMAIL,
-        default_password=DEFAULT_SENDER_PASSWORD,
-        render_backend_url=RENDER_BACKEND_URL
+        default_password=DEFAULT_SENDER_PASSWORD
     )
-
-@app.route('/api/config')
-def get_config():
-    return jsonify({
-        'render_backend_url': RENDER_BACKEND_URL
-    })
 
 
 # -------------------------------------------------------------

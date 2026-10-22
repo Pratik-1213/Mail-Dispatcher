@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: bulk-mail-sender
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 300
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DEFAULT_SENDER_EMAIL
+        sync: false
+      - key: DEFAULT_SENDER_PASSWORD
+        sync: false

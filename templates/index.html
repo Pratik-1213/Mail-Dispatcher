@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bulk Mail Sender — Gmail SMTP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Mail Dispatcher</h1>
+          <p class="brand-subtitle">Bulk email sender via Gmail SMTP</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div id="smtpStatusPill" class="status-pill status-idle">
+          <span class="status-dot"></span>
+          <span id="smtpStatusText">Not verified</span>
+        </div>
+        <button id="verifyHeaderBtn" type="button" class="btn btn-secondary btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          Test Connection
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="main-container">
+    <form id="mailForm" class="grid-layout">
+      
+      <!-- Left Column: Credentials & Recipients -->
+      <div class="layout-column">
+        
+        <!-- Sender Credentials Card -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="step-badge">1</span>
+              <div>
+                <h2 class="card-title">Sender Credentials</h2>
+                <p class="card-description">Configure your sending Gmail account and App Password</p>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="senderEmail" class="form-label">Gmail Address</label>
+              <div class="input-wrapper">
+                <span class="input-prefix-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                </span>
+                <input 
+                  type="email" 
+                  id="senderEmail" 
+                  name="senderEmail" 
+                  class="form-input with-prefix" 
+                  placeholder="your.email@gmail.com" 
+                  value="{{ default_email or '' }}"
+                  required
+                >
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="label-with-link">
+                <label for="senderPassword" class="form-label">App Password</label>
+                <span class="helper-badge">16-character code</span>
+              </div>
+              <div class="input-wrapper">
+                <span class="input-prefix-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </span>
+                <input 
+                  type="password" 
+                  id="senderPassword" 
+                  name="senderPassword" 
+                  class="form-input with-prefix with-suffix" 
+                  placeholder="16-character app password" 
+                  value="{{ default_password or '' }}"
+                  required
+                >
+                <button type="button" id="togglePasswordBtn" class="input-suffix-btn" title="Toggle password visibility">
+                  <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg id="eyeOffIcon" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                    <line x1="2" x2="22" y1="2" y2="22"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="form-hint">Generated via Google Account &gt; Security &gt; 2-Step Verification &gt; App Passwords.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recipients Card -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="step-badge">2</span>
+              <div>
+                <h2 class="card-title">Recipients</h2>
+                <p class="card-description">Paste email list or upload a CSV / TXT file</p>
+              </div>
+            </div>
+            <div class="header-tools">
+              <label for="csvFileInput" class="btn btn-secondary btn-sm upload-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" x2="12" y1="3" y2="15"/>
+                </svg>
+                Upload File
+              </label>
+              <input type="file" id="csvFileInput" accept=".csv, .txt" class="hidden">
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <textarea 
+                id="recipientsTextarea" 
+                class="form-textarea monospace" 
+                rows="7" 
+                placeholder="Enter recipient emails, separated by commas, semicolons, or new lines:&#10;&#10;alex@example.com&#10;sarah.smith@company.org&#10;team-leads@domain.com"
+              ></textarea>
+            </div>
+            
+            <div class="recipients-summary-bar">
+              <div class="stats-group">
+                <span class="stat-pill stat-valid">
+                  <strong id="validCount">0</strong> valid
+                </span>
+                <span class="stat-pill stat-invalid" id="invalidPill" style="display: none;">
+                  <strong id="invalidCount">0</strong> invalid
+                </span>
+                <span class="stat-pill stat-duplicates" id="dupPill" style="display: none;">
+                  <strong id="dupCount">0</strong> duplicates removed
+                </span>
+              </div>
+              <button type="button" id="clearRecipientsBtn" class="btn-link">Clear</button>
+            </div>
+
+            <!-- Optional Dispatch Throttling -->
+            <div class="form-group throttle-row">
+              <label for="delayInput" class="form-label-compact">Send Interval</label>
+              <div class="select-inline-wrapper">
+                <select id="delayInput" class="form-select">
+                  <option value="0.5">0.5s (Fast)</option>
+                  <option value="1.0" selected>1.0s (Recommended for Gmail)</option>
+                  <option value="2.0">2.0s (Safer)</option>
+                  <option value="3.0">3.0s (Cautious)</option>
+                </select>
+                <span class="form-hint-inline">Delay between each email to prevent rate limiting</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Message Content & Attachment -->
+      <div class="layout-column">
+        
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="step-badge">3</span>
+              <div>
+                <h2 class="card-title">Compose Email</h2>
+                <p class="card-description">Set subject line, attach documents, and write content</p>
+              </div>
+            </div>
+            <div class="format-toggle">
+              <button type="button" id="btnModePlain" class="toggle-btn active">Plain Text</button>
+              <button type="button" id="btnModeHtml" class="toggle-btn">HTML</button>
+            </div>
+          </div>
+          <div class="card-body">
+            
+            <!-- Subject Input -->
+            <div class="form-group">
+              <label for="emailSubject" class="form-label">Subject</label>
+              <input 
+                type="text" 
+                id="emailSubject" 
+                class="form-input" 
+                placeholder="Important Announcement / Update"
+                required
+              >
+            </div>
+
+            <!-- Document Attachment Section -->
+            <div class="form-group">
+              <div class="label-with-link">
+                <label class="form-label">Attach Documents</label>
+                <span class="file-size-limit">Max 25 MB total</span>
+              </div>
+              
+              <!-- Dropzone -->
+              <div id="dropzone" class="attachment-dropzone">
+                <input type="file" id="fileAttachmentInput" multiple class="hidden">
+                <div class="dropzone-inner">
+                  <div class="dropzone-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="dropzone-text">
+                      <button type="button" id="browseFilesBtn" class="btn-link font-medium">Click to upload</button> or drag and drop files here
+                    </p>
+                    <p class="dropzone-sub">PDF, Word, Excel, images, presentations, or zip files</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Attached Files List -->
+              <div id="attachedFilesList" class="attached-files-container" style="display: none;"></div>
+            </div>
+
+            <!-- Email Content Area -->
+            <div class="form-group">
+              <div class="content-header-tabs">
+                <label for="emailBody" class="form-label">Message Content</label>
+                <div class="editor-tabs">
+                  <button type="button" id="tabEditor" class="editor-tab active">Write</button>
+                  <button type="button" id="tabPreview" class="editor-tab">Preview</button>
+                </div>
+              </div>
+              
+              <div id="editorContainer">
+                <textarea 
+                  id="emailBody" 
+                  class="form-textarea message-textarea" 
+                  rows="10" 
+                  placeholder="Dear recipient,&#10;&#10;Write the content of your email message here. If you have attached a document, it will be automatically included with each email sent.&#10;&#10;Best regards,&#10;Your Name"
+                  required
+                ></textarea>
+              </div>
+
+              <div id="previewContainer" class="preview-panel" style="display: none;">
+                <div id="previewHtmlContent" class="preview-body"></div>
+              </div>
+            </div>
+
+            <!-- Bottom Actions Bar -->
+            <div class="action-footer">
+              <button type="button" id="sendTestBtn" class="btn btn-secondary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/>
+                  <path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/>
+                </svg>
+                Send Test to Myself
+              </button>
+
+              <button type="submit" id="sendBulkBtn" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"/>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+                <span id="sendBulkBtnText">Send Bulk Emails</span>
+              </button>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+
+    </form>
+
+    <!-- Real-time Dispatch Progress Console -->
+    <section id="dispatchConsole" class="card console-card" style="display: none;">
+      <div class="card-header console-header">
+        <div class="card-title-group">
+          <div class="spinner-icon" id="consoleSpinner">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="card-title" id="consoleTitle">Dispatching Emails</h2>
+            <p class="card-description" id="consoleSubtitle">Live status feed from Gmail SMTP server</p>
+          </div>
+        </div>
+        <div class="console-actions">
+          <button type="button" id="exportLogBtn" class="btn btn-secondary btn-sm" style="display: none;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Export Log
+          </button>
+          <button type="button" id="closeConsoleBtn" class="btn btn-secondary btn-sm" style="display: none;">
+            Dismiss
+          </button>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="progress-bar-container">
+          <div class="progress-info">
+            <span class="progress-status-text" id="progressStatusText">Preparing connection...</span>
+            <span class="progress-percent" id="progressPercentText">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progressBarFill" class="progress-fill" style="width: 0%;"></div>
+          </div>
+          <div class="progress-metrics">
+            <span class="metric-item">Total: <strong id="metricTotal">0</strong></span>
+            <span class="metric-item metric-success">Delivered: <strong id="metricSent">0</strong></span>
+            <span class="metric-item metric-failed">Failed: <strong id="metricFailed">0</strong></span>
+          </div>
+        </div>
+
+        <!-- Live Feed Log Table -->
+        <div class="log-table-wrapper">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">#</th>
+                <th>Recipient</th>
+                <th style="width: 120px;">Status</th>
+                <th style="width: 100px;">Time</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Confirmation Modal -->
+  <div id="confirmModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirm Bulk Dispatch</h3>
+        <button type="button" id="modalCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to send <strong><span id="confirmRecipientCount">0</span></strong> emails via your Gmail account:</p>
+        <div class="modal-details-box">
+          <div class="detail-row">
+            <span class="detail-label">From:</span>
+            <span class="detail-val" id="confirmFrom"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Subject:</span>
+            <span class="detail-val" id="confirmSubject"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Attachments:</span>
+            <span class="detail-val" id="confirmAttachments">None</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Throttle:</span>
+            <span class="detail-val" id="confirmDelay">1.0s between sends</span>
+          </div>
+        </div>
+        <p class="modal-warning">
+          Please confirm you have reviewed the email content and attachments before proceeding.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="modalCancelBtn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="modalProceedBtn" class="btn btn-primary">Start Sending</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

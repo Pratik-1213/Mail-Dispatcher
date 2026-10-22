@@ -32,16 +32,82 @@ DEFAULT_SENDER_EMAIL = os.environ.get('DEFAULT_SENDER_EMAIL', '')
 DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', '')
 RENDER_BACKEND_URL = os.environ.get('RENDER_BACKEND_URL', os.environ.get('BACKEND_URL', ''))
 
-def clean_password(pwd: str) -> str:
-    """Gmail app passwords often come with spaces; strip them for smtplib."""
-    return pwd.replace(" ", "").strip() if pwd else ""
+import socket
+
+def create_ipv4_socket(host: str, port: int, timeout: float = 12):
+    """Specifically resolve and connect via IPv4 to prevent serverless/Linux [Errno 101] Network is unreachable."""
+    addr_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    last_err = None
+    for res in addr_info:
+        af, socktype, proto, _, sa = res
+        sock = None
+        try:
+            sock = socket.socket(af, socktype, proto)
+            if timeout is not None:
+                sock.settimeout(timeout)
+            sock.connect(sa)
+            return sock
+        except OSError as e:
+            last_err = e
+            if sock:
+                sock.close()
+    if last_err:
+        raise last_err
+    raise OSError(f"Could not connect to {host}:{port} via IPv4")
+
+class IPv4SMTP_SSL(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        sock = create_ipv4_socket(host, port, timeout)
+        server_hostname = self._host if self._host else host
+        return self.context.wrap_socket(sock, server_hostname=server_hostname)
+
+class IPv4SMTP(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        return create_ipv4_socket(host, port, timeout)
 
 def get_smtp_connection(sender_email: str, sender_password: str):
-    """Establishes SSL connection to Gmail SMTP."""
+    """Establishes authenticated connection to Gmail SMTP using multi-strategy fallback (IPv4 SSL 465 -> IPv4 TLS 587 -> Standard)."""
     pwd = clean_password(sender_password)
-    server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15)
-    server.login(sender_email.strip(), pwd)
-    return server
+    last_err = None
+
+    # Strategy 1: IPv4 SMTP_SSL on Port 465 (Gmail SSL)
+    try:
+        server = IPv4SMTP_SSL("smtp.gmail.com", 465, timeout=12)
+        server.login(sender_email.strip(), pwd)
+        return server
+    except smtplib.SMTPAuthenticationError:
+        raise
+    except Exception as e:
+        last_err = e
+
+    # Strategy 2: IPv4 SMTP on Port 587 (Gmail STARTTLS)
+    try:
+        server = IPv4SMTP("smtp.gmail.com", 587, timeout=12)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(sender_email.strip(), pwd)
+        return server
+    except smtplib.SMTPAuthenticationError:
+        raise
+    except Exception as e:
+        last_err = e
+
+    # Strategy 3: Standard library smtplib fallback
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=12)
+        server.login(sender_email.strip(), pwd)
+        return server
+    except smtplib.SMTPAuthenticationError:
+        raise
+    except Exception as e:
+        err_str = str(e) or str(last_err)
+        if "101" in err_str or "unreachable" in err_str.lower() or "110" in err_str or "timed out" in err_str.lower():
+            raise OSError(
+                "Direct SMTP connection is blocked by this serverless host (Vercel). "
+                "Please deploy your backend to Render (where SMTP is fully supported), then in Vercel Settings or in the app's top header gear icon, paste your Render backend URL."
+            )
+        raise e
 
 @app.route('/')
 def index():

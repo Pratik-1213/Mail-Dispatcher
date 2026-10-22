@@ -1,5 +1,9 @@
 {
   "version": 2,
-  "public": false,
-  "cleanUrls": true
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.py"
+    }
+  ]
 }

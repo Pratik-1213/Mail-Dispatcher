@@ -48,23 +48,24 @@ In this setup, Render hosts both the user interface and the Python email engine.
 
 ## Deployment Option 2: Frontend on Vercel + Backend on Render
 
-If you prefer serving your frontend via Vercel's global CDN while letting Render handle the Python SMTP dispatch:
+If you deploy your project to **Vercel** and your backend to **Render**:
 
-### Step 1: Deploy Backend to Render
-1. Follow **Option 1** above to deploy your repository to Render.
-2. Note your Render URL: e.g. `https://your-mail-backend.onrender.com`.
+### Step 1: Deploy Backend on Render
+1. Deploy your repository on Render as a Web Service.
+2. Copy your Render service URL (e.g., `https://mail-dispatcher-xyz.onrender.com`).
 
-### Step 2: Deploy to Vercel
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New...** > **Project**.
-2. Import the same GitHub repository.
+### Step 2: Deploy to Vercel & Add Environment Variable
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard) and import your `Pratik-1213/Mail-Dispatcher` repository.
+2. In the **Environment Variables** section on Vercel, add:
+
+| Key | Value | Description |
+| :--- | :--- | :--- |
+| `RENDER_BACKEND_URL` | `https://your-backend.onrender.com` | Your live Render backend URL |
+
 3. Click **Deploy**.
 
-### Step 3: Link Vercel to Render
-1. Open your live Vercel URL in your browser.
-2. Click the **Gear icon (Settings)** in the top header.
-3. In the **Backend Render URL** field, paste your Render URL:
-   `https://your-mail-backend.onrender.com`
-4. Click **Save Settings**. The frontend will immediately ping and connect to your Render backend with full CORS support enabled!
+> **How it works**: Vercel reads `RENDER_BACKEND_URL` from your environment variables and automatically points all frontend requests (health check, SMTP verify, attachments, bulk dispatch) to your Render backend without needing any manual configuration in the browser!
+
 
 ---
 

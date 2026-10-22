@@ -30,6 +30,7 @@ EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
 # Empty by default; only populated if administrator explicitly sets them via environment variables
 DEFAULT_SENDER_EMAIL = os.environ.get('DEFAULT_SENDER_EMAIL', '')
 DEFAULT_SENDER_PASSWORD = os.environ.get('DEFAULT_SENDER_PASSWORD', '')
+RENDER_BACKEND_URL = os.environ.get('RENDER_BACKEND_URL', os.environ.get('BACKEND_URL', ''))
 
 def clean_password(pwd: str) -> str:
     """Gmail app passwords often come with spaces; strip them for smtplib."""
@@ -47,8 +48,16 @@ def index():
     return render_template(
         'index.html',
         default_email=DEFAULT_SENDER_EMAIL,
-        default_password=DEFAULT_SENDER_PASSWORD
+        default_password=DEFAULT_SENDER_PASSWORD,
+        render_backend_url=RENDER_BACKEND_URL
     )
+
+@app.route('/api/config')
+def get_config():
+    return jsonify({
+        'render_backend_url': RENDER_BACKEND_URL
+    })
+
 
 # -------------------------------------------------------------
 # Health Check / Wake Up endpoint (Wakes up sleeping Render container)

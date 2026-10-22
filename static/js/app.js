@@ -98,10 +98,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // 0. API Base URL resolution (for Vercel + Render split)
   // -----------------------------------------------------------
   function getApiBase() {
+    // 1. Manual user override from Settings modal
     const saved = localStorage.getItem('mail_sender_backend_url');
     if (saved && saved.trim()) {
       return saved.trim().replace(/\/+$/, '');
     }
+    // 2. Injected from Vercel environment variable (RENDER_BACKEND_URL / BACKEND_URL)
+    if (window.RENDER_BACKEND_URL && window.RENDER_BACKEND_URL.trim()) {
+      return window.RENDER_BACKEND_URL.trim().replace(/\/+$/, '');
+    }
+    // 3. Fallback to same origin
     return '';
   }
 
@@ -185,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. Settings Modal (for Vercel deployment)
   // -----------------------------------------------------------
   settingsBtn.addEventListener('click', () => {
-    backendUrlInput.value = localStorage.getItem('mail_sender_backend_url') || '';
+    backendUrlInput.value = localStorage.getItem('mail_sender_backend_url') || window.RENDER_BACKEND_URL || '';
     autoKeepAliveCheckbox.checked = localStorage.getItem('mail_sender_keepalive') !== 'false';
     settingsModal.style.display = 'flex';
   });

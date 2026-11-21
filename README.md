@@ -50,6 +50,20 @@ Double-click `start.bat` in this folder.
 
 ---
 
+## Running Automated Tests
+
+To execute the automated unit test suite:
+1. Install development and test dependencies:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+2. Run pytest:
+   ```bash
+   pytest tests
+   ```
+
+---
+
 ## Gmail App Password Setup
 
 If you ever need to change or regenerate your Gmail App Password:
